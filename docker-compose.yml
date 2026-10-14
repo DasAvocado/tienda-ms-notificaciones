@@ -1,0 +1,9 @@
+services:
+  ms-notificaciones:
+    build: .
+    image: pedidos360/ms-notificaciones
+    container_name: ms-notificaciones
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    env_file: .env      # copia .env.example a .env y completa los valores
