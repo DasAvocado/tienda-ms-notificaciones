@@ -3,6 +3,7 @@ package com.tienda.ms_notificaciones.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -43,13 +44,17 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtConverter)));
 
-        if (securityEnabled) {
-            // Solo un ADMIN puede disparar correos manualmente.
-            http.authorizeHttpRequests(auth -> auth.anyRequest().hasRole("ADMIN"));
-        } else {
-            // SOLO PARA PRUEBAS LOCALES (SECURITY_ENABLED=false): permite llamar desde Postman sin token.
-            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        }
+        http.authorizeHttpRequests(auth -> {
+            if (securityEnabled) {
+                // Disparar correos manualmente (Postman): solo ADMIN.
+                auth.requestMatchers(HttpMethod.POST, "/api/notificaciones/enviar").hasRole("ADMIN");
+            } else {
+                // SOLO PARA PRUEBAS LOCALES (SECURITY_ENABLED=false): permite llamar desde Postman sin token.
+                auth.requestMatchers(HttpMethod.POST, "/api/notificaciones/enviar").permitAll();
+            }
+            // Preferencias del usuario: requieren JWT; scope y rol se validan con @PreAuthorize en PreferenciaController.
+            auth.anyRequest().authenticated();
+        });
         return http.build();
     }
 

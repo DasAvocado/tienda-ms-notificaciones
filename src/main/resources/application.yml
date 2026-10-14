@@ -4,16 +4,57 @@ server:
 spring:
   application:
     name: ms-notificaciones
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/pedidos360}
+    username: ${DB_USER:admin}
+    password: ${DB_PASSWORD:password123}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
   rabbitmq:
     host: ${RABBIT_HOST:localhost}
     port: ${RABBIT_PORT:5672}
     username: ${RABBIT_USER:guest}
     password: ${RABBIT_PASSWORD:guest}
-  # SMTP: NO se define aqui. Si exportas SPRING_MAIL_HOST (+ PORT, USERNAME, PASSWORD) se envian
-  # correos reales; si no existe, el servicio funciona en modo SIMULADO (registra el correo en el log).
-  # Ejemplo Mailtrap/Gmail: ver .env.example en la raiz del proyecto.
+    # Confirmaciones del broker + mensajes no enrutables (se registran en log; ver RabbitConfig)
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual          # ACK explicito en cada consumidor (ConfirmacionMensajes)
+        default-requeue-rejected: false   # un rechazo NUNCA se reencola: va a la DLQ
+        prefetch: 10
+  # ---- Correo (SMTP real: Gmail) ----
+  # Valores por defecto = cuenta Gmail del proyecto, asi el correo sale de verdad en local y en AWS sin configurar nada.
+  # Para usar otra cuenta, define SPRING_MAIL_HOST / SPRING_MAIL_USERNAME / SPRING_MAIL_PASSWORD / MAIL_FROM en el .env.
+  # Para volver al modo SIMULADO (solo log): SPRING_MAIL_HOST= (vacio).
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:aknittel2301@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:sotlsuupjjkpewwz}   # contrasena de aplicacion de Google (16 letras, sin espacios)
+    default-encoding: UTF-8
+    properties:
+      "[mail.smtp.auth]": true
+      "[mail.smtp.starttls.enable]": true
+      "[mail.smtp.starttls.required]": true
+      "[mail.smtp.connectiontimeout]": 10000
+      "[mail.smtp.timeout]": 10000
+      "[mail.smtp.writetimeout]": 10000
 
 app:
+  # ---- RabbitMQ: TODOS los nombres de mensajeria de este servicio se definen aqui ----
+  rabbit:
+    exchange: pedidos360.events
+    dlx: pedidos360.dlx
+    max-reintentos: 3                    # p.ej. SMTP caido: 3 reintentos y luego a la DLQ
+    routing-keys:
+      orden-creada: orden.creada         # consume
+      notificacion-enviada: notificacion.enviada   # publica
+    queues:
+      orden-creada: notificaciones.orden-creada
+      orden-creada-dlq: notificaciones.orden-creada.dlq
   azure:
     tenant-id: ${AZURE_TENANT_ID:d276cca8-e687-4f20-8984-601387d11401}
     client-id: ${AZURE_CLIENT_ID:39a9591b-35f1-4165-8cf2-667a2c643920}
@@ -22,7 +63,7 @@ app:
     # false = permite llamar POST /api/notificaciones/enviar desde Postman SIN token (solo pruebas).
     enabled: ${SECURITY_ENABLED:true}
   mail:
-    from: ${MAIL_FROM:no-reply@pedidos360.local}
-    # El UPN de Entra (usuario@tenant.onmicrosoft.com) normalmente no es un buzon real.
-    # Si defines NOTIFY_OVERRIDE_TO, todos los correos de ordenes se envian a esa direccion.
+    from: ${MAIL_FROM:aknittel2301@gmail.com}   # Gmail exige que sea la misma cuenta del username
+    # Vacio (recomendado) = el correo de compra va al correo con el que el usuario inicio sesion.
+    # Solo si tu cuenta de Entra no tiene buzon real, define NOTIFY_OVERRIDE_TO para redirigir TODO a esa casilla.
     override-to: ${NOTIFY_OVERRIDE_TO:}

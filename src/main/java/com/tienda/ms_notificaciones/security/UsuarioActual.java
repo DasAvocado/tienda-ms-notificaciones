@@ -13,11 +13,17 @@ public final class UsuarioActual {
         return oid != null ? oid : jwt.getSubject();
     }
 
-    /** Correo / UPN del usuario. */
+    /**
+     * Correo con el que el usuario inicio sesion.
+     * Prioridad: claim "email" (buzon real; se agrega en Azure > Configuracion de token > Notificacion opcional "email")
+     * -> "preferred_username" (lo que muestra MSAL en el frontend) -> "upn".
+     */
     public static String email(Jwt jwt) {
-        String email = jwt.getClaimAsString("preferred_username");
-        if (email == null) email = jwt.getClaimAsString("email");
-        return email != null ? email : "";
+        for (String claim : new String[] {"email", "preferred_username", "upn"}) {
+            String valor = jwt.getClaimAsString(claim);
+            if (valor != null && valor.contains("@")) return valor;
+        }
+        return "";
     }
 
     public static String nombre(Jwt jwt) {
